@@ -12,6 +12,7 @@ import time
 import random
 from urllib.parse import urljoin, urlparse
 import json
+import argparse
 
 class PodcastScraper:
     def __init__(self):
@@ -399,18 +400,25 @@ class PodcastScraper:
             print(f"Error saving combined transcripts: {e}")
             return None
     
-    def scrape_all_transcripts(self):
-        """Main method to scrape all podcast transcripts"""
+    def scrape_all_transcripts(self, start_episode=None, end_episode=None):
+        """Main method to scrape all podcast transcripts
+
+        Args:
+            start_episode: Only scrape episodes >= this number (None = no minimum)
+            end_episode: Only scrape episodes <= this number (None = no maximum)
+        """
         print("Starting podcast transcript scraper...")
-        
+        if start_episode or end_episode:
+            print(f"Episode range: {start_episode or 'any'} - {end_episode or 'any'}")
+
         # Get episode links from WordPress API (more comprehensive)
-        episode_links = self.get_episodes_from_api(max_episodes=3)
-        
+        episode_links = self.get_episodes_from_api(max_episodes=100)
+
         if not episode_links:
             print("No episode links found from API. Trying main page...")
             # Fallback to main page scraping
-            episode_links = self.get_episode_links(max_episodes=3)
-        
+            episode_links = self.get_episode_links(max_episodes=100)
+
         if not episode_links:
             print("No episode links found. Trying alternative approach...")
             # Try to manually add some known episode URLs
@@ -418,21 +426,34 @@ class PodcastScraper:
                 "https://www.iwillteachyoutoberich.com/194-lakiesha-james-2/",
                 # Add more episode URLs as needed
             ]
-        
+
+        # Filter by episode number range
+        filtered_links = []
+        for url in episode_links:
+            ep_num = self.extract_episode_number(url)
+            if ep_num:
+                if start_episode and ep_num < start_episode:
+                    continue
+                if end_episode and ep_num > end_episode:
+                    continue
+            filtered_links.append(url)
+
+        episode_links = filtered_links
+
         print(f"\nFound {len(episode_links)} episode URLs:")
         print("=" * 80)
         for i, url in enumerate(episode_links, 1):
             print(f"{i:2d}. {url}")
         print("=" * 80)
-        
+
         # Scrape transcripts for all episodes
         print(f"\nScraping transcripts for {len(episode_links)} episodes...")
         transcripts_data = []
         successful_scrapes = 0
-        
+
         for i, episode_url in enumerate(episode_links, 1):
             print(f"\n[{i}/{len(episode_links)}] Processing: {episode_url}")
-            
+
             transcript = self.extract_transcript(episode_url)
             if transcript:
                 transcripts_data.append((episode_url, transcript))
@@ -440,7 +461,7 @@ class PodcastScraper:
                 print(f"  ✓ Successfully extracted transcript ({len(transcript)} characters)")
             else:
                 print(f"  ✗ Failed to extract transcript")
-        
+
         # Save all transcripts to a single file
         if transcripts_data:
             print(f"\nSaving {len(transcripts_data)} transcripts to combined file...")
@@ -451,12 +472,23 @@ class PodcastScraper:
                 print("✗ Failed to save combined transcripts")
         else:
             print("No transcripts to save")
-        
+
         print(f"\nScraping complete! Successfully scraped {successful_scrapes}/{len(episode_links)} transcripts.")
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Scrape podcast transcripts from I Will Teach You To Be Rich"
+    )
+    parser.add_argument("--start", type=int, help="Start episode number")
+    parser.add_argument("--end", type=int, help="End episode number")
+
+    args = parser.parse_args()
+
     scraper = PodcastScraper()
-    scraper.scrape_all_transcripts()
+    scraper.scrape_all_transcripts(
+        start_episode=args.start,
+        end_episode=args.end
+    )
 
 if __name__ == "__main__":
     main() 
